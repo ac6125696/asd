@@ -31,12 +31,25 @@ jobs:
             exit 1
           fi
 
-          echo "PROJECT=$PROJECT" >> $GITHUB_ENV
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
           echo "Found: $PROJECT"
 
-      - name: Check Xcode project
+      - name: Select Xcode
         run: |
-          xcodebuild -list -project "$PROJECT"
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install iOS Simulator runtime
+        run: |
+          xcrun simctl list runtimes
+          xcrun simctl list devices available
+
+      - name: Check Xcode destinations
+        run: |
+          xcodebuild -showsdks
+          xcodebuild -showdestinations \
+            -project "$PROJECT" \
+            -scheme Unity-iPhone
 
       - name: Build iOS Simulator app
         run: |
