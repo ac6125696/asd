@@ -1,0 +1,60 @@
+name: Build KnightsCollege iOS Simulator
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout workflow
+        uses: actions/checkout@v4
+
+      - name: Install Git LFS
+        run: |
+          git lfs install
+
+      - name: Clone KnightsCollege from Hugging Face
+        run: |
+          git clone https://huggingface.co/datasets/user3671/knights-college KnightsCollege
+          cd KnightsCollege
+          git lfs pull
+
+      - name: Find Xcode project
+        run: |
+          PROJECT=$(find KnightsCollege -name "Unity-iPhone.xcodeproj" -print -quit)
+
+          if [ -z "$PROJECT" ]; then
+            echo "Unity-iPhone.xcodeproj not found!"
+            exit 1
+          fi
+
+          echo "PROJECT=$PROJECT" >> $GITHUB_ENV
+          echo "Found: $PROJECT"
+
+      - name: Check Xcode project
+        run: |
+          xcodebuild -list -project "$PROJECT"
+
+      - name: Build iOS Simulator app
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/KnightsCollegeBuild" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Upload Simulator APP
+        uses: actions/upload-artifact@v4
+        with:
+          name: KnightsCollege-iOS-Simulator
+          path: ${{ runner.temp }}/KnightsCollegeBuild/Build/Products/Release-iphonesimulator/Unity-iPhone.app
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
