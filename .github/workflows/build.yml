@@ -18,27 +18,17 @@ jobs:
           cd KnightsCollege
           git lfs pull
 
-      - name: Generate library report
+      - name: Inspect native libraries
         run: |
-          REPORT="$RUNNER_TEMP/library-report.txt"
-
-          echo "KNIGHTSCOLLEGE LIBRARY REPORT" > "$REPORT"
+          echo "========== LIBRARY REPORT =========="
 
           find KnightsCollege -name "*.a" -type f -print0 |
           while IFS= read -r -d '' file; do
-            {
-              echo ""
-              echo "FILE: $file"
-              file "$file"
-              xcrun lipo -info "$file" 2>&1 || true
-            } >> "$REPORT"
+            echo ""
+            echo "FILE: $file"
+            file "$file"
+            xcrun lipo -info "$file" 2>&1 || true
           done
 
-          cat "$REPORT"
-
-      - name: Upload report only
-        uses: actions/upload-artifact@v4
-        with:
-          name: KnightsCollege-Library-Report
-          path: ${{ runner.temp }}/library-report.txt
-          retention-days: 3
+          echo ""
+          echo "========== REPORT FINISHED =========="
