@@ -34,37 +34,43 @@ jobs:
           echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
           echo "Found: $PROJECT"
 
-      - name: Select Xcode
+      - name: Check Xcode
         run: |
-          xcode-select -p
           xcodebuild -version
-
-      - name: Check Xcode destinations
-        run: |
           xcodebuild -showsdks
           xcrun simctl list runtimes
           xcrun simctl list devices available
-          xcodebuild -showdestinations \
+
+      - name: Inspect project destinations
+        run: |
+          xcodebuild \
+            -showdestinations \
             -project "$PROJECT" \
             -scheme Unity-iPhone
 
-      - name: Build iOS Simulator app
+      - name: Inspect Simulator build settings
         run: |
           xcodebuild \
+            -showBuildSettings \
             -project "$PROJECT" \
             -scheme Unity-iPhone \
-            -configuration Release \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/KnightsCollegeBuild" \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+            | grep -E 'SUPPORTED_PLATFORMS|SDKROOT|ARCHS|VALID_ARCHS|IPHONEOS_DEPLOYMENT_TARGET|TARGETED_DEVICE_FAMILY|PLATFORM_NAME|MACH_O_TYPE' || true
 
-      - name: Upload Simulator APP
+      - name: Inspect project targets
+        run: |
+          xcodebuild -list -project "$PROJECT"
+
+      - name: Inspect native libraries
+        run: |
+          find KnightsCollege -type f \( -name "*.a" -o -name "*.framework" \) -print
+
+      - name: Upload diagnostic logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KnightsCollege-iOS-Simulator
-          path: ${{ runner.temp }}/KnightsCollegeBuild/Build/Products/Release-iphonesimulator/Unity-iPhone.app
-          if-no-files-found: error
-          compression-level: 0
+          name: KnightsCollege-diagnostics
+          path: |
+            KnightsCollege/Unity-iPhone.xcodeproj/project.pbxproj
+          if-no-files-found: warn
           retention-days: 7
