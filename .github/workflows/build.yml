@@ -1,4 +1,4 @@
-name: KnightsCollege Library Report
+name: KnightsCollege Platform Inspector
 
 on:
   workflow_dispatch:
@@ -18,17 +18,82 @@ jobs:
           cd KnightsCollege
           git lfs pull
 
-      - name: Inspect native libraries
+      - name: Inspect library platforms
+        shell: bash
         run: |
-          echo "========== LIBRARY REPORT =========="
+          set -u
 
-          find KnightsCollege -name "*.a" -type f -print0 |
-          while IFS= read -r -d '' file; do
+          mkdir -p "$RUNNER_TEMP/library-inspect"
+
+          for LIB in \
+            "KnightsCollege/Libraries/libiPhone-lib.a" \
+            "KnightsCollege/Libraries/libil2cpp.a" \
+            "KnightsCollege/libiPhone-lib.a"
+          do
             echo ""
-            echo "FILE: $file"
-            file "$file"
-            xcrun lipo -info "$file" 2>&1 || true
+            echo "======================================"
+            echo "LIBRARY: $LIB"
+            echo "======================================"
+
+            if [ ! -f "$LIB" ]; then
+              echo "NOT FOUND"
+              continue
+            fi
+
+            file "$LIB"
+            xcrun lipo -info "$LIB" || true
+
+            for ARCH in arm64 armv7
+            do
+              echo ""
+              echo "---------- ARCH: $ARCH ----------"
+
+              TEMP="$RUNNER_TEMP/library-inspect/$ARCH"
+              mkdir -p "$TEMP"
+
+              THIN="$TEMP/library.a"
+
+              if ! xcrun lipo "$LIB" -thin "$ARCH" -output "$THIN" 2>/dev/null; then
+                echo "Architecture unavailable: $ARCH"
+                continue
+              fi
+
+              ar -t "$THIN" > "$TEMP/members.txt" || continue
+
+              COUNT=0
+
+              while IFS= read -r MEMBER
+              do
+                COUNT=$((COUNT + 1))
+
+                OBJECT="$TEMP/object-$COUNT.o"
+
+                ar -p "$THIN" "$MEMBER" > "$OBJECT" 2>/dev/null || continue
+
+                echo ""
+                echo "OBJECT: $MEMBER"
+
+                file "$OBJECT"
+
+                echo "--- PLATFORM LOAD COMMANDS ---"
+
+                otool -l "$OBJECT" 2>/dev/null |
+                  grep -A 6 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_IPHONEOS|LC_VERSION_MIN_TVOS' || true
+
+                rm -f "$OBJECT"
+
+              done < "$TEMP/members.txt"
+
+              echo ""
+              echo "OBJECT COUNT: $COUNT"
+            done
           done
 
           echo ""
-          echo "========== REPORT FINISHED =========="
+          echo "========== INSPECTION FINISHED =========="
+
+      - name: Check Xcode SDKs
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list runtimes
