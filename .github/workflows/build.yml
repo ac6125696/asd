@@ -1,76 +1,53 @@
-name: Build KnightsCollege iOS Simulator
+name: KnightsCollege Library Diagnostics
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  inspect:
     runs-on: macos-15-intel
     timeout-minutes: 360
 
     steps:
-      - name: Checkout workflow
-        uses: actions/checkout@v4
-
       - name: Install Git LFS
-        run: |
-          git lfs install
+        run: git lfs install
 
-      - name: Clone KnightsCollege from Hugging Face
+      - name: Clone KnightsCollege
         run: |
           git clone https://huggingface.co/datasets/user3671/knights-college KnightsCollege
           cd KnightsCollege
           git lfs pull
 
-      - name: Find Xcode project
-        run: |
-          PROJECT=$(find KnightsCollege -name "Unity-iPhone.xcodeproj" -print -quit)
-
-          if [ -z "$PROJECT" ]; then
-            echo "Unity-iPhone.xcodeproj not found!"
-            exit 1
-          fi
-
-          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
-          echo "Found: $PROJECT"
-
-      - name: Check Xcode
-        run: |
-          xcodebuild -version
-          xcodebuild -showsdks
-          xcrun simctl list runtimes
-          xcrun simctl list devices available
-
-      - name: Inspect project destinations
-        run: |
-          xcodebuild \
-            -showdestinations \
-            -project "$PROJECT" \
-            -scheme Unity-iPhone
-
-      - name: Inspect Simulator build settings
-        run: |
-          xcodebuild \
-            -showBuildSettings \
-            -project "$PROJECT" \
-            -scheme Unity-iPhone \
-            -sdk iphonesimulator \
-            | grep -E 'SUPPORTED_PLATFORMS|SDKROOT|ARCHS|VALID_ARCHS|IPHONEOS_DEPLOYMENT_TARGET|TARGETED_DEVICE_FAMILY|PLATFORM_NAME|MACH_O_TYPE' || true
-
-      - name: Inspect project targets
-        run: |
-          xcodebuild -list -project "$PROJECT"
-
       - name: Inspect native libraries
         run: |
-          find KnightsCollege -type f \( -name "*.a" -o -name "*.framework" \) -print
+          echo "=== Static libraries ==="
+          find KnightsCollege -name "*.a" -type f -print0 |
+          while IFS= read -r -d '' file; do
+            echo ""
+            echo "FILE: $file"
+            file "$file"
+            xcrun lipo -info "$file" 2>&1 || true
+          done
 
-      - name: Upload diagnostic logs
+      - name: Inspect frameworks
+        run: |
+          find KnightsCollege -name "*.framework" -type d |
+          while read framework; do
+            echo ""
+            echo "FRAMEWORK: $framework"
+            find "$framework" -maxdepth 2 -type f -exec file {} \;
+          done
+
+      - name: Inspect project settings
+        run: |
+          grep -nE 'SDKROOT|SUPPORTED_PLATFORMS|ARCHS|VALID_ARCHS|IPHONEOS_DEPLOYMENT_TARGET|TARGETED_DEVICE_FAMILY' \
+          KnightsCollege/Unity-iPhone.xcodeproj/project.pbxproj || true
+
+      - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KnightsCollege-diagnostics
-          path: |
-            KnightsCollege/Unity-iPhone.xcodeproj/project.pbxproj
+          name: KnightsCollege-Library-Report
+          path: KnightsCollege
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 3
