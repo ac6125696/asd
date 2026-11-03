@@ -1,4 +1,4 @@
-name: KnightsCollege Library Diagnostics
+name: KnightsCollege Library Report
 
 on:
   workflow_dispatch:
@@ -18,36 +18,27 @@ jobs:
           cd KnightsCollege
           git lfs pull
 
-      - name: Inspect native libraries
+      - name: Generate library report
         run: |
-          echo "=== Static libraries ==="
+          REPORT="$RUNNER_TEMP/library-report.txt"
+
+          echo "KNIGHTSCOLLEGE LIBRARY REPORT" > "$REPORT"
+
           find KnightsCollege -name "*.a" -type f -print0 |
           while IFS= read -r -d '' file; do
-            echo ""
-            echo "FILE: $file"
-            file "$file"
-            xcrun lipo -info "$file" 2>&1 || true
+            {
+              echo ""
+              echo "FILE: $file"
+              file "$file"
+              xcrun lipo -info "$file" 2>&1 || true
+            } >> "$REPORT"
           done
 
-      - name: Inspect frameworks
-        run: |
-          find KnightsCollege -name "*.framework" -type d |
-          while read framework; do
-            echo ""
-            echo "FRAMEWORK: $framework"
-            find "$framework" -maxdepth 2 -type f -exec file {} \;
-          done
+          cat "$REPORT"
 
-      - name: Inspect project settings
-        run: |
-          grep -nE 'SDKROOT|SUPPORTED_PLATFORMS|ARCHS|VALID_ARCHS|IPHONEOS_DEPLOYMENT_TARGET|TARGETED_DEVICE_FAMILY' \
-          KnightsCollege/Unity-iPhone.xcodeproj/project.pbxproj || true
-
-      - name: Upload diagnostics
-        if: always()
+      - name: Upload report only
         uses: actions/upload-artifact@v4
         with:
           name: KnightsCollege-Library-Report
-          path: KnightsCollege
-          if-no-files-found: warn
+          path: ${{ runner.temp }}/library-report.txt
           retention-days: 3
