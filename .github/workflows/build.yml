@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 360
 
     steps:
@@ -36,17 +36,14 @@ jobs:
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcode-select -p
           xcodebuild -version
-
-      - name: Install iOS Simulator runtime
-        run: |
-          xcrun simctl list runtimes
-          xcrun simctl list devices available
 
       - name: Check Xcode destinations
         run: |
           xcodebuild -showsdks
+          xcrun simctl list runtimes
+          xcrun simctl list devices available
           xcodebuild -showdestinations \
             -project "$PROJECT" \
             -scheme Unity-iPhone
